@@ -32,10 +32,9 @@ my $num_lines = 0;
 
 for my $fn ( @file ) {
 	open my $fh, '<:encoding(UTF-8)', $fn
-		or do {
-			if ( CGI_MODE ) { cgi_exit +( $!{EACCES} ? 403 : 500 ) x 2 }
-			else { die "Couldn't open $fn to read: $!\n" }
-		};
+		or CGI_MODE
+			? cgi_exit +( $!{EACCES} ? 403 : 500 ) x 2
+			: die "Couldn't open $fn to read: $!\n";
 
 	while ( <$fh> ) {
 		++$num_lines;
