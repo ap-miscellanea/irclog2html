@@ -42,10 +42,12 @@ for my $fn ( @file ) {
 		chomp;
 		my $line_id = sha1_base64 encode 'UTF-8', $_;
 		my ( $nick, $line ) = split /(?<=>) /, $_, 2;
+
 		$line =~ s{\G(.*?)$url_rx?}{
 			encode_entities( $1 )
 			. ( $2 ? sprintf '<a href="%s">%1$s</a>', encode_entities( $2 ) : '' )
 		}eg;
+
 		$body .=
 			sprintf "<table><tr>%s</tr></table>\n",
 			join "",
