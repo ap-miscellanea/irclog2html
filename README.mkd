@@ -1,0 +1,30 @@
+This script converts IRC logs to HTML pages, while attempting
+to stay as close to no parsing as feasible.
+
+### Usage
+
+	irclog2html \#foo.1.log \#foo.1.log > channel-foo.log.html
+
+### CGI mode
+
+The script detects whether it was run under a name ending in
+`.cgi` and switches to acting as a CGI. There may be a better
+solution for this.
+
+In CGI mode it looks at the environment variable `IRCLOG` (or
+`REDIRECT_IRCLOG`) for the filename to read.
+
+So put it somewhere where your web server can find it,
+with a filename ending in `.cgi`, eg.:
+
+	ln -s `which irclog2html` /var/www/cgi-bin/irclog2html.cgi
+
+Then add something like the following lines to `.htaccess`
+or to your Apache configuration:
+
+	RewriteEngine On
+	RewriteCond %{QUERY_STRING} !(^|[&;])src=1($|[&;])
+	RewriteCond %{REQUEST_FILENAME} (.*\.irclog)$
+	RewriteRule .* /cgi-bin/irclog2html.cgi [E=IRCLOG:%1]
+
+<!-- vim: tw=62 -->
