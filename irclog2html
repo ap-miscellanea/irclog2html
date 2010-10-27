@@ -10,15 +10,17 @@ use constant CGI_MODE => $0 =~ /\.cgi\z/;
 my %ent = qw( < lt > gt & amp ' #39 " #34 );
 sub encode_entities { s!([<>&'"])!&$ent{$1};!g for my @c = @_; @c[ 0 .. $#c ] }
 
+sub cgi_exit {
+	my ( $status, $body ) = @_;
+	print "Status: $status\r\n";
+	print "Content-Type: text/plain\r\n";
+	print "\r\n$body";
+	exit;
+}
+
 my @file = ( not CGI_MODE )
 	? ( @ARGV ? @ARGV : '-' )
-	: $ENV{'IRCLOG'} // $ENV{'REDIRECT_IRCLOG'}
-		// do {
-			print "Status: 404\r\n";
-			print "Content-Type: text/plain\r\n";
-			print "\r\nEmpty.";
-			exit;
-		};
+	: $ENV{'IRCLOG'} // $ENV{'REDIRECT_IRCLOG'} // cgi_exit 404, 'Empty.';
 
 # regex by John Gruber
 # http://daringfireball.net/2010/07/improved_regex_for_matching_urls
@@ -31,13 +33,7 @@ my $num_lines = 0;
 for my $fn ( @file ) {
 	open my $fh, '<:encoding(UTF-8)', $fn
 		or do {
-			if ( CGI_MODE ) {
-				my $status = $!{EACCES} ? 403 : 500;
-				print "Status: $status\r\n";
-				print "Content-Type: text/plain\r\n";
-				print "\r\n$status";
-				exit;
-			}
+			if ( CGI_MODE ) { cgi_exit +( $!{EACCES} ? 403 : 500 ) x 2 }
 			else { die "Couldn't open $fn to read: $!\n" }
 		};
 
