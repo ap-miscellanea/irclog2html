@@ -18,9 +18,18 @@ sub cgi_exit {
 	exit;
 }
 
-my @file = ( not CGI_MODE )
-	? ( @ARGV ? @ARGV : '-' )
-	: $ENV{'IRCLOG'} // $ENV{'REDIRECT_IRCLOG'} // cgi_exit 404, 'Empty.';
+my ( @file, $opt_from );
+
+if ( not CGI_MODE ) {
+	@file = @ARGV ? @ARGV : '-';
+	eval 'Getopt::Long 2.24, qw( :config bundling no_ignore_case no_auto_abbrev )';
+	GetOptions( 'from|f=s' => \$opt_from ) or die "\n";
+}
+else {
+	@file = $ENV{'IRCLOG'} // $ENV{'REDIRECT_IRCLOG'} // cgi_exit 404, 'Empty.';
+	my %h; push @{ $h{$$_[0]} }, $$_[1] for map [ split /=/, $_, 2 ], split /[&;]/, $ENV{'QUERY_STRING'};
+	$opt_from = @{ $h{'f'} }[-1] if exists $h{'f'};
+}
 
 # regex by John Gruber
 # http://daringfireball.net/2010/07/improved_regex_for_matching_urls
@@ -37,9 +46,12 @@ for my $fn ( @file ) {
 			: die "Couldn't open $fn to read: $!\n";
 
 	while ( <$fh> ) {
-		++$num_lines;
 		chomp;
+
 		my $line_id = sha1_base64 encode 'UTF-8', $_;
+		next if $opt_from and $line_id ne $opt_from and not $num_lines;
+
+		++$num_lines;
 		my ( $nick, $line ) = split /(?<=>) /, $_, 2;
 
 		$line =~ s{\G(.*?)$url_rx?}{
