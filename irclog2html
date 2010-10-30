@@ -18,6 +18,17 @@ sub cgi_exit {
 	exit;
 }
 
+sub openf {
+	my ( $fn ) = @_;
+	my $binmode = ':encoding(UTF-8)';
+	if ( '-' eq $fn ) { binmode STDIN, $binmode; return \*STDIN }
+	open my $fh, "<$binmode", $fn
+		or CGI_MODE
+			? cgi_exit +( $!{EACCES} ? 403 : 500 ) x 2
+			: die "Couldn't open $fn to read: $!\n";
+	return $fh;
+}
+
 my ( @file, $opt_from );
 
 if ( not CGI_MODE ) {
@@ -40,11 +51,7 @@ my $body = '';
 my $num_lines = 0;
 
 for my $fn ( @file ) {
-	open my $fh, '<:encoding(UTF-8)', $fn
-		or CGI_MODE
-			? cgi_exit +( $!{EACCES} ? 403 : 500 ) x 2
-			: die "Couldn't open $fn to read: $!\n";
-
+	my $fh = openf $fn;
 	while ( <$fh> ) {
 		chomp;
 
