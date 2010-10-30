@@ -63,6 +63,7 @@ for my $fn ( @file ) {
 			sprintf "<table><tr>%s</tr></table>\n",
 			join "",
 			map { sprintf "<td>%s</td>", $_ }
+			( CGI_MODE ? sprintf( '<a href="?f=%s">&#8615;</a>', $line_id ) : () ),
 			sprintf( '<a href="#l%s" id="l%s">%s</a>', $line_id, $line_id, encode_entities $nick ),
 			$line;
 	}
@@ -70,14 +71,17 @@ for my $fn ( @file ) {
 
 print "Content-Type: text/html; charset=us-ascii\r\n\r\n" if CGI_MODE;
 
+my $colsel = CGI_MODE ? '+ td' : '';
+
 print Encode::encode 'us-ascii', << "END_PAGE", Encode::FB_HTMLCREF;
 <html>
 <head>
 <title>$title@{[ $title ? ' ' : '' ]}($num_lines lines) « irclog2html</title>
 <style type="text/css">
-tr > td:first-child > a { text-decoration: none; color: inherit }
+@{[ CGI_MODE ? 'tr > td:first-child > a { text-decoration: none }' : '' ]}
+tr > td:first-child $colsel > a { text-decoration: none; color: inherit }
 td { font-family: monospace; font-size: 12px; vertical-align: top; white-space: nowrap }
-td + td { padding-left: 0.25em; white-space: normal }
+td:first-child + td $colsel { padding-left: 0.25em; white-space: normal }
 </style>
 </head>
 <body>
