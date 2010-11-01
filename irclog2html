@@ -136,19 +136,17 @@ sub page {
 	$title .= ' ' if $title;
 	$title .= '(' . @{ $self->lines } . ' lines)';
 
-	my $stylesheet = qq(
+	my $page = qq(
+		<html>
+		<head>
+		<title>$title « irclog2html</title>
+		<style type="text/css">
 		a.perma { text-decoration: none; color: inherit }
 		a.skip { text-decoration: none; margin-right: .5em }
 		a.skip:before { content: '\\21A7' }
 		td { font-family: monospace; font-size: 12px; vertical-align: top; white-space: nowrap }
 		td:first-child + td { padding-left: 0.25em; white-space: normal }
-	);
-
-	my $body = qq(
-		<html>
-		<head>
-		<title>$title « irclog2html</title>
-		<style type="text/css">$stylesheet</style>
+		</style>
 		</head>
 		<body>
 		${\join '', @{ $self->lines } }
@@ -156,10 +154,10 @@ sub page {
 		</html>
 	);
 
-	$body =~ s!^\t+!!mg;
-	$body =~ s!^\n+!!;
+	$page =~ s!^\t+!!mg;
+	$page =~ s!^\n+!!;
 
-	return Encode::encode 'us-ascii', $body, Encode::FB_HTMLCREF;
+	return Encode::encode 'us-ascii', $page, Encode::FB_HTMLCREF;
 }
 
 }
