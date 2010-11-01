@@ -107,9 +107,10 @@ sub add {
 
 		my ( $nick, $line ) = split /(?<=>) /, $_, 2;
 
+		# FIXME referer hiding should probably be optional?
 		$line =~ s{\G(.*?)$url_rx?}{
 			encode_entities( $1 )
-			. ( $2 ? sprintf '<a href="%s">%1$s</a>', encode_entities( $2 ) : '' )
+			. ( $2 ? sprintf '<a href="%s" rel="noreferrer">%1$s</a>', encode_entities( $2 ) : '' )
 		}eg;
 
 		my $meta;
