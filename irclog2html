@@ -4,12 +4,11 @@ use strict;
 use utf8;
 
 sub parse_query {
-	my %q;
-	for ( split /[&;]/, $ENV{'QUERY_STRING'} ) {
-		my ( $k, $v ) = split /=/, $_, 2;
-		push @{ $q{$k} }, $v;
-	}
-	return \%q;
+	return Hash::MultiValue->new(
+		map { split /=/, $_, 2 }
+		split /[&;]/,
+		$ENV{'QUERY_STRING'}
+	);
 }
 
 sub response {
@@ -38,7 +37,7 @@ sub openf {
 }
 
 if ( $0 !~ /\.cgi\z/ ) {
-	eval 'use Getopt::Long 2.24, qw( :config bundling no_ignore_case no_auto_abbrev )';
+	eval 'use Getopt::Long 2.24, qw( :config bundling no_ignore_case no_auto_abbrev ); 1' or die $@;
 	GetOptions( 'from|f=s' => \my $opt_from ) or die "\n";
 
 	my $log = HTMLLog->new( title => "@ARGV", show_from => $opt_from );
@@ -55,7 +54,7 @@ else {
 
 	my $fn = $ENV{'IRCLOG'} // $ENV{'REDIRECT_IRCLOG'} // response 404;
 
-	eval 'use Errno';
+	eval 'use Errno; use Hash::MultiValue; 1' or die $@;
 	my $fh = openf $fn or response $!{ENOENT} ? 404 : $!{EACCES} ? 403 : 500;
 
 	my $p = parse_query;
@@ -65,7 +64,7 @@ else {
 		HTMLLog->new(
 			title          => $fn,
 			show_skip_link => 1,
-			show_from      => $p->{'f'}[-1],
+			show_from      => $p->{'f'},
 		)->add( $fh )->page
 	);
 }
