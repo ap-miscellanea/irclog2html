@@ -2,19 +2,27 @@
 use 5.010;
 use strict;
 use utf8;
-use Encode;
-use Digest::SHA1 qw( sha1_base64 );
 
-use constant CGI_MODE => $0 =~ /\.cgi\z/;
+sub parse_query {
+	my %q;
+	for ( split /[&;]/, $ENV{'QUERY_STRING'} ) {
+		my ( $k, $v ) = split /=/, $_, 2;
+		push @{ $q{$k} }, $v;
+	}
+	return \%q;
+}
 
-my %ent = qw( < lt > gt & amp ' #39 " #34 );
-sub encode_entities { s!([<>&'"])!&$ent{$1};!g for my @c = @_; @c[ 0 .. $#c ] }
-
-sub cgi_exit {
-	my ( $status, $body ) = @_;
+sub response {
+	my ( $status, $headers, $body ) = @_;
+	$headers->{'Content-Type'} //= 'text/plain';
 	print "Status: $status\r\n";
-	print "Content-Type: text/plain\r\n";
-	print "\r\n$body";
+	print map { "$_: $headers->{$_}\r\n" } sort keys %$headers;
+	print "\r\n";
+	if             ( $body )  { print $body }
+	elsif ( 404 == $status )  { print "$status Not Found" }
+	elsif ( 403 == $status )  { print "$status Access Denied" }
+	elsif ( $status =~ /^4/ ) { print "$status Request Error" }
+	elsif ( $status =~ /^5/ ) { print "$status Server Error" }
 	exit;
 }
 
@@ -22,43 +30,82 @@ sub openf {
 	my ( $fn ) = @_;
 	my $binmode = ':encoding(UTF-8)';
 	if ( '-' eq $fn ) { binmode STDIN, $binmode; return \*STDIN }
-	open my $fh, "<$binmode", $fn
-		or CGI_MODE
-			? cgi_exit +( $!{EACCES} ? 403 : 500 ) x 2
-			: die "Couldn't open $fn to read: $!\n";
+	open my $fh, "<$binmode", $fn or return;
 	return $fh;
 }
 
-my ( @file, $opt_from );
-
-if ( not CGI_MODE ) {
+if ( $0 !~ /\.cgi\z/ ) {
 	eval 'use Getopt::Long 2.24, qw( :config bundling no_ignore_case no_auto_abbrev )';
-	GetOptions( 'from|f=s' => \$opt_from ) or die "\n";
-	@file = @ARGV ? @ARGV : '-';
+	GetOptions( 'from|f=s' => \my $opt_from ) or die "\n";
+
+	my $log = HTMLLog->new( title => "@ARGV", show_from => $opt_from );
+
+	for my $fn ( @ARGV ? @ARGV : '-' ) {
+		my $fh = openf $fn or die "Couldn't open $fn to read: $!\n";
+		$log->add( $fh );
+	}
+
+	print $log->page;
 }
 else {
-	@file = $ENV{'IRCLOG'} // $ENV{'REDIRECT_IRCLOG'} // cgi_exit 404, 'Empty.';
-	my %h; push @{ $h{$$_[0]} }, $$_[1] for map [ split /=/, $_, 2 ], split /[&;]/, $ENV{'QUERY_STRING'};
-	$opt_from = @{ $h{'f'} }[-1] if exists $h{'f'};
+	response 405 if 'GET' ne $ENV{'REQUEST_METHOD'};
+
+	my $fn = $ENV{'IRCLOG'} // $ENV{'REDIRECT_IRCLOG'} // response 404;
+
+	eval 'use Errno';
+	my $fh = openf $fn or response $!{ENOENT} ? 404 : $!{EACCES} ? 403 : 500;
+
+	my $p = parse_query;
+
+	response 200, (
+		{ 'Content-Type', 'text/html; charset=us-ascii' },
+		HTMLLog->new(
+			title          => $fn,
+			show_skip_link => 1,
+			show_from      => $p->{'f'}[-1],
+		)->add( $fh )->page
+	);
 }
+
+#######################################################################
+
+BEGIN {
+
+package HTMLLog;
+use Object::Tiny qw( lines title show_from show_skip_link );
+use Encode;
+use Digest::SHA1 qw( sha1_base64 );
+
+my %ent = qw( < lt > gt & amp ' #39 " #34 );
+sub encode_entities { s!([<>&'"])!&$ent{$1};!g for my @c = @_; @c[ 0 .. $#c ] }
 
 # regex by John Gruber
 # http://daringfireball.net/2010/07/improved_regex_for_matching_urls
-my $url_rx = qr{\b((?:[a-z][\w-]+:(?:/{1,3}|[a-z0-9%])|www\d{0,3}[.|[a-z0-9.\-]+[.[a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\{\};:'".,<>?«»“”‘’]))}i;
+sub url_rx { qr{\b((?:[a-z][\w-]+:(?:/{1,3}|[a-z0-9%])|www\d{0,3}[.|[a-z0-9.\-]+[.[a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\{\};:'".,<>?«»“”‘’]))}i }
 
-my ( $title ) = @file == 1 ? $file[0] =~ /([^\/]+?)(?:\.(?:irc)?log)?\z/ : '';
-my $body = '';
-my $num_lines = 0;
+sub new {
+	my $class = shift;
+	return $class->SUPER::new( @_, lines => [] );
+}
 
-for my $fn ( @file ) {
-	my $fh = openf $fn;
-	while ( <$fh> ) {
+sub add {
+	my $self = shift;
+	my ( $next ) = @_;
+
+	my $next = sub { <$next> } if 'CODE' ne ref $next;
+
+	my $url_rx       = $self->url_rx;
+	my $do_show_skip = $self->show_skip_link;
+	my $from_hash    = $self->show_from;
+	my $lines        = $self->lines;
+
+	local *_;
+	while ( defined( $_ = $next->() ) ) {
 		chomp;
 
 		my $line_id = sha1_base64 encode 'UTF-8', $_;
-		next if $opt_from and $line_id ne $opt_from and not $num_lines;
+		next if $from_hash and $line_id ne $from_hash and not @$lines;
 
-		++$num_lines;
 		my ( $nick, $line ) = split /(?<=>) /, $_, 2;
 
 		$line =~ s{\G(.*?)$url_rx?}{
@@ -66,33 +113,55 @@ for my $fn ( @file ) {
 			. ( $2 ? sprintf '<a href="%s">%1$s</a>', encode_entities( $2 ) : '' )
 		}eg;
 
-		$body .=
+		push @$lines, (
 			sprintf "<table><tr>%s</tr></table>\n",
-			join "",
+			join '',
 			map { sprintf "<td>%s</td>", $_ }
-			( CGI_MODE ? sprintf( '<a href="?f=%s">&#8615;</a>', $line_id ) : () ),
+			( $do_show_skip ? sprintf( '<a href="?f=%s">&#8615;</a>', $line_id ) : () ),
 			sprintf( '<a href="#l%s" id="l%s">%s</a>', $line_id, $line_id, encode_entities $nick ),
-			$line;
+			$line
+		);
 	}
+
+	return $self;
 }
 
-print "Content-Type: text/html; charset=us-ascii\r\n\r\n" if CGI_MODE;
+sub page {
+	my $self = shift;
 
-my $colsel = CGI_MODE ? '+ td' : '';
+	my $title = $self->title;
+	$title  =~ s/\.(?:irc)?log(?: |\z)//g if $title;
+	$title  =~ s!(?: |\A)([^ ]*/)!!g if $title;
+	$title .= ' ' if $title;
+	$title .= '(' . @{ $self->lines } . ' lines)';
 
-print Encode::encode 'us-ascii', << "END_PAGE", Encode::FB_HTMLCREF;
-<html>
-<head>
-<title>$title@{[ $title ? ' ' : '' ]}($num_lines lines) « irclog2html</title>
-<style type="text/css">
-@{[ CGI_MODE ? 'tr > td:first-child > a { text-decoration: none }' : '' ]}
-tr > td:first-child $colsel > a { text-decoration: none; color: inherit }
-td { font-family: monospace; font-size: 12px; vertical-align: top; white-space: nowrap }
-td:first-child + td $colsel { padding-left: 0.25em; white-space: normal }
-</style>
-</head>
-<body>
-$body
-</body>
-</html>
-END_PAGE
+	my $colsel = $self->show_skip_link ? '+ td' : '';
+
+	my $stylesheet = qq(
+		tr > td:first-child $colsel > a { text-decoration: none; color: inherit }
+		td { font-family: monospace; font-size: 12px; vertical-align: top; white-space: nowrap }
+		td:first-child + td $colsel { padding-left: 0.25em; white-space: normal }
+	);
+
+	$stylesheet .= "\n" . 'tr > td:first-child > a { text-decoration: none }'
+		if $self->show_skip_link;
+
+	my $body = qq(
+		<html>
+		<head>
+		<title>$title « irclog2html</title>
+		<style type="text/css">$stylesheet</style>
+		</head>
+		<body>
+		${\join '', @{ $self->lines } }
+		</body>
+		</html>
+	);
+
+	$body =~ s!^\t+!!mg;
+	$body =~ s!^\n+!!;
+
+	return Encode::encode 'us-ascii', $body, Encode::FB_HTMLCREF;
+}
+
+}
