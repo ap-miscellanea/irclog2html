@@ -76,8 +76,9 @@ BEGIN {
 
 package HTMLLog;
 use Object::Tiny qw( lines title show_from show_skip_link );
-use Encode;
-use Digest::SHA1 qw( sha1_base64 );
+
+use Encode ();
+use Digest::SHA1 ();
 
 my %ent = qw( < lt > gt & amp ' #39 " #34 );
 sub encode_entities { s!([<>&'"])!&$ent{$1};!g for my @c = @_; @c[ 0 .. $#c ] }
@@ -105,7 +106,7 @@ sub add {
 	while ( defined( $_ = $next->() ) ) {
 		chomp;
 
-		my $line_id = sha1_base64 encode 'UTF-8', $_;
+		my $line_id = Digest::SHA1::sha1_base64 Encode::encode 'UTF-8', $_;
 		next if $from_hash and $line_id ne $from_hash and not @$lines;
 
 		my ( $nick, $line ) = split /(?<=>) /, $_, 2;

@@ -1,6 +1,11 @@
 This script converts IRC logs in UTF-8 to HTML pages, while
 attempting to stay as close to no parsing as feasible.
 
+It requires [Object::Tiny][1], [Digest::SHA1][2] and Perl 5.10 (or newer).
+
+[1]: http://search.cpan.org/dist/Object-Tiny/
+[2]: http://search.cpan.org/dist/Digest-SHA1/
+
 ### Usage
 
 	irclog2html \#foo.1.log \#foo.2.log > channel-foo.log.html
