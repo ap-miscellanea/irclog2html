@@ -95,7 +95,6 @@ sub add {
 	my $next = sub { <$next> } if 'CODE' ne ref $next;
 
 	my $url_rx       = $self->url_rx;
-	my $do_show_skip = $self->show_skip_link;
 	my $from_hash    = $self->show_from;
 	my $lines        = $self->lines;
 
@@ -113,13 +112,14 @@ sub add {
 			. ( $2 ? sprintf '<a href="%s">%1$s</a>', encode_entities( $2 ) : '' )
 		}eg;
 
+		my $meta;
+		$meta  = sprintf '<a href="?f=%s" class="skip"></a>', $line_id if $self->show_skip_link;
+		$meta .= sprintf '<a href="#l%s" id="l%1$s" class="perma">%s</a>', $line_id, encode_entities $nick;
+
 		push @$lines, (
 			sprintf "<table><tr>%s</tr></table>\n",
-			join '',
-			map { sprintf "<td>%s</td>", $_ }
-			( $do_show_skip ? sprintf( '<a href="?f=%s">&#8615;</a>', $line_id ) : () ),
-			sprintf( '<a href="#l%s" id="l%s">%s</a>', $line_id, $line_id, encode_entities $nick ),
-			$line
+			join '' => map { sprintf "<td>%s</td>", $_ }
+			$meta, $line
 		);
 	}
 
@@ -135,16 +135,13 @@ sub page {
 	$title .= ' ' if $title;
 	$title .= '(' . @{ $self->lines } . ' lines)';
 
-	my $colsel = $self->show_skip_link ? '+ td' : '';
-
 	my $stylesheet = qq(
-		tr > td:first-child $colsel > a { text-decoration: none; color: inherit }
+		a.perma { text-decoration: none; color: inherit }
+		a.skip { text-decoration: none; margin-right: .5em }
+		a.skip:before { content: '\\21A7' }
 		td { font-family: monospace; font-size: 12px; vertical-align: top; white-space: nowrap }
-		td:first-child + td $colsel { padding-left: 0.25em; white-space: normal }
+		td:first-child + td { padding-left: 0.25em; white-space: normal }
 	);
-
-	$stylesheet .= "\n" . 'tr > td:first-child > a { text-decoration: none }'
-		if $self->show_skip_link;
 
 	my $body = qq(
 		<html>
