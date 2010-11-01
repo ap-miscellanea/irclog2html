@@ -14,15 +14,18 @@ sub parse_query {
 
 sub response {
 	my ( $status, $headers, $body ) = @_;
+	( $headers, $body ) = ( {}, $headers ) if 'HASH' ne ref $headers;
 	$headers->{'Content-Type'} //= 'text/plain';
 	print "Status: $status\r\n";
 	print map { "$_: $headers->{$_}\r\n" } sort keys %$headers;
 	print "\r\n";
-	if             ( $body )  { print $body }
-	elsif ( 404 == $status )  { print "$status Not Found" }
-	elsif ( 403 == $status )  { print "$status Access Denied" }
-	elsif ( $status =~ /^4/ ) { print "$status Request Error" }
-	elsif ( $status =~ /^5/ ) { print "$status Server Error" }
+	given ( $status ) {
+		when ( defined $body ) { print $body }
+		when ( 404 )  { print "$status Not Found"     }
+		when ( 403 )  { print "$status Access Denied" }
+		when ( /^4/ ) { print "$status Request Error" }
+		when ( /^5/ ) { print "$status Server Error"  }
+	}
 	exit;
 }
 
