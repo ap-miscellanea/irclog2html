@@ -122,8 +122,8 @@ sub add {
 
 		push @$lines, (
 			sprintf "<table><tr>%s</tr></table>\n",
-			join '' => map { sprintf "<td>%s</td>", $_ }
-			$meta, $line
+			join '' => map { sprintf "<td%s</td>", $_ }
+			' class="crud">' . $meta , ' class="text">' . $line
 		);
 	}
 
@@ -147,8 +147,9 @@ sub page {
 		a.perma { text-decoration: none; color: inherit }
 		a.skip { text-decoration: none; margin-right: .5em }
 		a.skip:before { content: '\\21A7' }
-		td { font-family: monospace; font-size: 12px; vertical-align: top; white-space: nowrap }
-		td:first-child + td { padding-left: 0.25em; white-space: normal }
+		td { font-family: monospace; font-size: 12px; vertical-align: top }
+		td.crud { white-space: nowrap }
+		td.text { padding-left: 0.25em }
 		</style>
 		</head>
 		<body>
