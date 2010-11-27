@@ -91,6 +91,19 @@ sub new {
 	return $class->SUPER::new( @_, lines => [] );
 }
 
+sub linkify {
+	my $self = shift;
+	my ( $url ) = @_;
+	return '' if not defined $url;
+
+	my @seg = map { encode_entities $_ } map m!(.{1,50})!sg, split m{(?<=/)(?!/)}, $url;
+	my $link  = join '', @seg;
+	my $label = join '<wbr />', @seg;
+
+	# FIXME referer hiding should probably be optional?
+	return qq'<a href="$link" rel="noreferrer" tabindex="1">$label</a>';
+}
+
 sub add {
 	my $self = shift;
 	my ( $next ) = @_;
@@ -110,11 +123,7 @@ sub add {
 
 		my ( $nick, $line ) = split /(?<=>) /, $_, 2;
 
-		# FIXME referer hiding should probably be optional?
-		$line =~ s{\G(.*?)$url_rx?}{
-			encode_entities( $1 )
-			. ( $2 ? sprintf '<a href="%s" rel="noreferrer" tabindex="1">%1$s</a>', encode_entities( $2 ) : '' )
-		}eg;
+		$line =~ s{\G(.*?)$url_rx?}{ encode_entities($1) . $self->linkify($2) }eg;
 
 		my $meta;
 		$meta  = sprintf '<a href="?f=%s" class="skip" tabindex="9"></a>', $line_id if $self->show_skip_link;
