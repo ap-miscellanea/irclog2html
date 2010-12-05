@@ -158,7 +158,7 @@ sub page {
 		a.skip:before { content: '\\21A7' }
 		td { font-family: monospace; font-size: 12px; vertical-align: top }
 		td.crud { white-space: nowrap }
-		td.text { padding-left: 0.25em }
+		td.text { padding-left: 0.25em; white-space: pre-wrap }
 		</style>
 		</head>
 		<body>
