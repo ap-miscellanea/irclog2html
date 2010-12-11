@@ -54,7 +54,7 @@ else {
 
 	my $fn = $ENV{'IRCLOG'} // $ENV{'REDIRECT_IRCLOG'} // response 404;
 
-	eval 'use Errno; use Hash::MultiValue; 1' or die $@;
+	eval 'use Hash::MultiValue; 1' or die $@;
 	my $fh = openf $fn or response $!{ENOENT} ? 404 : $!{EACCES} ? 403 : 500;
 
 	my $p = parse_query;
