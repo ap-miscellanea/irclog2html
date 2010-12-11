@@ -4,6 +4,7 @@ use strict;
 use utf8;
 
 sub parse_query {
+	require Hash::MultiValue;
 	return Hash::MultiValue->new(
 		map { split /=/, $_, 2 }
 		split /[&;]/,
@@ -54,7 +55,6 @@ else {
 
 	my $fn = $ENV{'IRCLOG'} // $ENV{'REDIRECT_IRCLOG'} // response 404;
 
-	eval 'use Hash::MultiValue; 1' or die $@;
 	my $fh = openf $fn or response $!{ENOENT} ? 404 : $!{EACCES} ? 403 : 500;
 
 	my $p = parse_query;
