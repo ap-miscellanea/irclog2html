@@ -53,20 +53,24 @@ if ( $0 !~ /\.cgi\z/ ) {
 else {
 	response 405 if 'GET' ne $ENV{'REQUEST_METHOD'};
 
-	my $fn = $ENV{'IRCLOG'} // $ENV{'REDIRECT_IRCLOG'} // response 404;
+	my $fn = $ENV{'PATH_TRANSLATED'} // response 404;
 
 	my $fh = openf $fn or response $!{ENOENT} ? 404 : $!{EACCES} ? 403 : 500;
 
 	my $p = parse_query;
 
-	response 200, (
-		{ 'Content-Type', 'text/html; charset=us-ascii' },
-		HTMLLog->new(
-			title          => $fn,
-			show_skip_link => 1,
-			show_from      => $p->{'f'},
-		)->add( $fh )->page
-	);
+	my $do_convert = not $p->{'src'};
+
+	my $hdr; $hdr->{'Content-Type'} = $do_convert
+		? 'text/html; charset=us-ascii'
+		: 'text/plain; charset=utf-8';
+
+	response 200, $hdr, HTMLLog->new(
+		title          => $fn,
+		show_skip_link => 1,
+		show_from      => $p->{'f'},
+		do_convert     => $do_convert,
+	)->add( $fh )->page;
 }
 
 #######################################################################
@@ -74,7 +78,7 @@ else {
 BEGIN {
 
 package HTMLLog;
-use Object::Tiny qw( lines title show_from show_skip_link );
+use Object::Tiny qw( lines title show_from show_skip_link do_convert );
 
 use Encode ();
 use Digest::SHA1 ();
@@ -88,7 +92,7 @@ sub url_rx { qr{\b((?:[a-z][\w-]+:(?:/{1,3}|[a-z0-9%])|www\d{0,3}[.|[a-z0-9.\-]+
 
 sub new {
 	my $class = shift;
-	return $class->SUPER::new( @_, lines => [] );
+	return $class->SUPER::new( do_convert => 1, @_, lines => [] );
 }
 
 sub linkify {
@@ -113,6 +117,7 @@ sub add {
 	my $url_rx       = $self->url_rx;
 	my $from_hash    = $self->show_from;
 	my $lines        = $self->lines;
+	my $do_convert   = $self->do_convert;
 
 	local *_;
 	while ( defined( $_ = $next->() ) ) {
@@ -120,6 +125,11 @@ sub add {
 
 		my $line_id = Digest::SHA1::sha1_base64 Encode::encode 'UTF-8', $_;
 		next if $from_hash and $line_id ne $from_hash and not @$lines;
+
+		if ( not $do_convert ) {
+			push @$lines, $_;
+			next;
+		}
 
 		my ( $nick, $line ) = split /(?<=>) /, $_, 2;
 
@@ -141,6 +151,9 @@ sub add {
 
 sub page {
 	my $self = shift;
+
+	return Encode::encode 'UTF-8', ( join "\n", @{ $self->lines }, '' ), Encode::FB_HTMLCREF
+		if not $self->do_convert;
 
 	my $title = $self->title;
 	$title  =~ s/\.(?:irc)?log(?: |\z)//g if $title;
