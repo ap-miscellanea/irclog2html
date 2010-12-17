@@ -131,7 +131,7 @@ sub add {
 			next;
 		}
 
-		my ( $nick, $line ) = split /(?<=>) /, $_, 2;
+		my ( $nick, $line ) = split /(?<=> )/, $_, 2;
 
 		$line =~ s{\G(.*?)$url_rx?}{ encode_entities($1) . $self->linkify($2) }eg;
 
@@ -166,12 +166,21 @@ sub page {
 		<head>
 		<title>$title « irclog2html</title>
 		<style type="text/css">
+		body { margin: 0.5em 0 }
 		a.perma { text-decoration: none; color: inherit }
-		a.skip { text-decoration: none; margin-right: .5em }
-		a.skip:before { content: '\\21A7' }
-		td { font-family: monospace; font-size: 12px; vertical-align: top }
-		td.crud { white-space: nowrap }
-		td.text { padding-left: 0.25em; white-space: pre-wrap }
+		a.skip { text-decoration: none }
+		a.skip:before { content: '\\A0\\21A7\\A0' }
+		table { border-collapse: collapse }
+		td {
+			margin: 0;
+			padding: 0.075em 0;
+			font-family: monospace;
+			font-size: 12px;
+			vertical-align: top;
+			line-height: 1.5;
+		}
+		td.crud { white-space: pre }
+		td.text { white-space: pre-wrap }
 		</style>
 		</head>
 		<body>
