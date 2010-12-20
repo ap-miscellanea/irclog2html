@@ -131,13 +131,13 @@ sub add {
 			next;
 		}
 
-		my ( $nick, $line ) = split /(?<=> )/, $_, 2;
+		my ( $nick, $line ) = split /(?<=>) /, $_, 2;
 
 		$line =~ s{\G(.*?)$url_rx?}{ encode_entities($1) . $self->linkify($2) }eg;
 
 		my $meta;
 		$meta  = sprintf '<a href="?f=%s" class="skip" tabindex="9"></a>', $line_id if $self->show_skip_link;
-		$meta .= sprintf '<a href="#l%s" id="l%1$s" class="perma" tabindex="9">%s</a>', $line_id, encode_entities $nick;
+		$meta .= sprintf '<a href="#l%s" id="l%1$s" class="perma" tabindex="9">%s</a> ', $line_id, encode_entities $nick;
 
 		push @$lines, (
 			sprintf "<table><tr>%s</tr></table>\n",
