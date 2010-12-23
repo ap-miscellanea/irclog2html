@@ -37,7 +37,7 @@ sub openf {
 	return $fh;
 }
 
-if ( $0 !~ /\.cgi\z/ ) {
+if ( 'CGI/1.1' ne ( $ENV{'GATEWAY_INTERFACE'} // '' ) ) {
 	eval 'use Getopt::Long 2.24, qw( :config bundling no_ignore_case no_auto_abbrev ); 1' or die $@;
 	GetOptions( 'from|f=s' => \my $opt_from ) or die "\n";
 

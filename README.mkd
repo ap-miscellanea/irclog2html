@@ -19,20 +19,18 @@ It requires [Object::Tiny][1], [Digest::SHA1][2],
 
 ### CGI mode
 
-The script detects whether it was run under a name ending in
-`.cgi` and switches to acting as a CGI. There may be a better
-solution for this.
+If the script detects that it was run in a CGI environment, it
+will look at the `PATH_TRANSLATED` environment variable for
+the filename to read. The assumption is that the script will
+be run by the web server to handle requests against particular
+files.
 
-In CGI mode it looks at the server-provided `PATH_TRANSLATED`
-environment variable for the filename to read.
-
-So put it somewhere where your web server can find it,
-with a filename ending in `.cgi`, eg.:
+Put it somewhere for your web server to find, eg.:
 
 	ln -s `which irclog2html` /var/www/cgi-bin/irclog2html.cgi
 
-Then add something like the following lines to `.htaccess`
-or to your Apache configuration:
+Then add something like the following lines to `.htaccess` or
+to your Apache configuration:
 
 	AddCharset utf-8         .irclog
 	AddType    text/x-irclog .irclog
