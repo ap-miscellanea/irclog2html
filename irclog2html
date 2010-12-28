@@ -59,7 +59,8 @@ else {
 
 	my $p = parse_query;
 
-	my $do_convert = not $p->{'src'};
+	my $do_convert  = not $p->{'src'};
+	my $do_skiplink = not $p->{'noskip'};
 
 	my $hdr; $hdr->{'Content-Type'} = $do_convert
 		? 'text/html; charset=us-ascii'
@@ -67,7 +68,7 @@ else {
 
 	response 200, $hdr, HTMLLog->new(
 		title          => $fn,
-		show_skip_link => 1,
+		show_skip_link => $do_skiplink,
 		show_from      => $p->{'f'},
 		do_convert     => $do_convert,
 	)->add( $fh )->page;
