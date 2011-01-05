@@ -42,9 +42,15 @@ if ( 'CGI/1.1' ne ( $ENV{'GATEWAY_INTERFACE'} // '' ) ) {
 	GetOptions(
 		'from|f=s' => \my $opt_from,
 		'to|t=s'   => \my $opt_to,
+		'noconv|N' => \my $opt_noconvert,
 	) or die "\n";
 
-	my $log = HTMLLog->new( title => "@ARGV", show_from => $opt_from, show_to => $opt_to );
+	my $log = HTMLLog->new(
+		title      => "@ARGV",
+		show_from  => $opt_from,
+		show_to    => $opt_to,
+		do_convert => ( not $opt_noconvert ),
+	);
 
 	for my $fn ( @ARGV ? @ARGV : '-' ) {
 		my $fh = openf $fn or die "Couldn't open $fn to read: $!\n";
