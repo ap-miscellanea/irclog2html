@@ -151,8 +151,8 @@ sub add {
 			$meta .= sprintf '<a href="#l%s" id="l%1$s" class="perma" tabindex="9">%s</a> ', $line_id, encode_entities $nick;
 
 			push @$lines, (
-				sprintf "<table><tr>%s</tr></table>\n",
-				join '' => map { sprintf "<td%s</td>", $_ }
+				sprintf "<div>%s</div>\n",
+				join '' => map { sprintf "<tt%s</tt>", $_ }
 				' class="crud">' . $meta , ' class="text">' . $line
 			);
 		}
@@ -180,21 +180,18 @@ sub page {
 		<head>
 		<title>$title « irclog2html</title>
 		<style type="text/css">
-		body { margin: 0.5em 0 }
+		body { margin: 0.5em 0; font-family: monospace }
 		a.perma { text-decoration: none; color: inherit }
 		a.skip { text-decoration: none }
 		a.skip:before { content: '\\A0\\21A7\\A0' }
-		table { border-collapse: collapse }
-		td {
+		div {
 			margin: 0;
-			padding: 0.075em 0;
-			font-family: monospace;
-			font-size: 12px;
+			padding: 0.05em 0;
 			vertical-align: top;
-			line-height: 1.5;
+			line-height: 1.4;
 		}
-		td.crud { white-space: pre }
-		td.text { white-space: pre-wrap }
+		.crud { display: table-cell; white-space: pre }
+		.text { display: table-cell; white-space: pre-wrap }
 		</style>
 		</head>
 		<body>
