@@ -180,7 +180,7 @@ sub page {
 		<head>
 		<title>$title « irclog2html</title>
 		<style type="text/css">
-		body { margin: 0.5em 0; font-family: monospace }
+		body { margin: 0.5em 0 }
 		a.perma { text-decoration: none; color: inherit }
 		a.skip { text-decoration: none }
 		a.skip:before { content: '\\A0\\21A7\\A0' }
@@ -192,6 +192,7 @@ sub page {
 		}
 		.crud { display: table-cell; white-space: pre }
 		.text { display: table-cell; white-space: pre-wrap }
+		tt { font-size: 13px }
 		</style>
 		</head>
 		<body>
