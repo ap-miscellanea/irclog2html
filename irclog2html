@@ -44,7 +44,6 @@ if ( 'CGI/1.1' ne ( $ENV{'GATEWAY_INTERFACE'} // '' ) ) {
 	) or die "\n";
 
 	my $log = ChatLog->new(
-		title      => "@ARGV",
 		show_from  => $opt_from,
 		show_to    => $opt_to,
 	);
@@ -54,7 +53,9 @@ if ( 'CGI/1.1' ne ( $ENV{'GATEWAY_INTERFACE'} // '' ) ) {
 		$log->add( $fh );
 	}
 
-	print $opt_noconvert ? $log->as_text : $log->as_html;
+	print $opt_noconvert
+		? $log->as_text
+		: $log->as_html( title => "@ARGV" );
 }
 else {
 	response 405 if 'GET' ne $ENV{'REQUEST_METHOD'};
@@ -66,7 +67,6 @@ else {
 	my $p = parse_query;
 
 	my $log = ChatLog->new(
-		title          => $fn,
 		show_from      => $p->{'f'},
 		show_to        => $p->{'t'},
 	)->add( $fh );
@@ -77,7 +77,10 @@ else {
 
 	print $p->{'src'}
 		? $log->as_text
-		: $log->as_html( show_skip_link => not $p->{'noskip'} );
+		: $log->as_html(
+			title          => $fn,
+			show_skip_link => not $p->{'noskip'},
+		);
 }
 
 #######################################################################
@@ -85,7 +88,7 @@ else {
 BEGIN {
 
 package ChatLog;
-use Object::Tiny qw( lines hashes title show_from show_to );
+use Object::Tiny qw( lines hashes show_from show_to );
 
 use Encode ();
 use Digest::SHA1 ();
@@ -177,7 +180,7 @@ sub as_html {
 		);
 	} 0 .. $#$lines;
 
-	my $title = $self->title;
+	my $title = $arg{'title'};
 	$title  =~ s/\.(?:irc)?log(?: |\z)//g if $title;
 	$title  =~ s!(?: |\A)([^ ]*/)!!g if $title;
 	$title .= ' ' if $title;
