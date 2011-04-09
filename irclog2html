@@ -229,24 +229,24 @@ sub chunk {
 		return if not defined $line;
 		my ( $hash ) = $self->log->get_hashes( $self->line, 1 );
 
-		$self->line++;
-
-		my $url_rx = _url_rx;
-
 		my ( $nick, $text ) = split /(?<=>) /, $line, 2;
 
-		$text =~ s{\G(.*?)$url_rx?}{ _encode_entities($1) . _linkify($2) }eg;
+		$chunk  = sprintf '<p id="l%s">', $hash;
+		$chunk .= '<tt class="crud">';
+		$chunk .= sprintf '<a href="?f=%s" class="f" tabindex="9"></a>', $hash if $self->show_skip_link;
+		$chunk .= sprintf '<a href="#l%s" class="p" tabindex="9"></a>', $hash;
+		$chunk .= _encode_entities $nick;
+		$chunk .= ' </tt>';
 
-		my $meta;
-		$meta  = sprintf '<a href="?f=%s" class="f" tabindex="9"></a>', $hash if $self->show_skip_link;
-		$meta .= sprintf '<a href="#l%s" class="p" tabindex="9"></a>%s ', $hash, _encode_entities $nick;
+		if ( defined $text ) {
+			my $url_rx = _url_rx;
+			$text =~ s{\G(.*?)$url_rx?}{ _encode_entities($1) . _linkify($2) }eg;
+			$chunk .= sprintf '<tt class="text">%s</tt>', $text;
+		}
 
-		$chunk = sprintf '<p id="l%s">%s</p>', $hash, (
-			join '' => map { sprintf "<tt%s</tt>", $_ }
-			' class="crud">' . $meta , ' class="text">' . $text
-		);
+		$chunk .= "\n";
 
-		$chunk .= defined $next_line ? "\n" : "\n</body\n</html>\n";
+		$self->line++;
 	}
 
 	return Encode::encode 'us-ascii', $chunk, Encode::FB_HTMLCREF;
