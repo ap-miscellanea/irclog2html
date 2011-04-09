@@ -44,7 +44,7 @@ else {
 		my $env = shift;
 		my $req = Plack::Request->new( $env );
 
-		return [ 405, [], [] ] if 'GET' ne $req->method;
+		return [ 405, [], [] ] if 'GET' ne $req->method and 'HEAD' ne $req->method;
 
 		my $fn = $ENV{'PATH_TRANSLATED'} // return [ 404, [], [] ];
 
