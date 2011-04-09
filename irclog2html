@@ -53,9 +53,11 @@ if ( 'CGI/1.1' ne ( $ENV{'GATEWAY_INTERFACE'} // '' ) ) {
 		$log->add( $fh );
 	}
 
-	print $opt_noconvert
+	my $out = $opt_noconvert
 		? $log->as_text
 		: $log->as_html( title => "@ARGV" );
+
+	print while defined( $_ = $out->chunk );
 }
 else {
 	response 405 if 'GET' ne $ENV{'REQUEST_METHOD'};
@@ -75,12 +77,14 @@ else {
 		? 'text/plain; charset=utf-8'
 		: 'text/html; charset=us-ascii';
 
-	print $p->{'src'}
+	my $out = $p->{'src'}
 		? $log->as_text
 		: $log->as_html(
 			title          => $fn,
 			show_skip_link => not $p->{'noskip'},
 		);
+
+	print while defined( $_ = $out->chunk );
 }
 
 #######################################################################
@@ -88,33 +92,14 @@ else {
 BEGIN {
 
 package ChatLog;
-use Object::Tiny qw( lines hashes show_from show_to );
+use Object::Tiny::Lvalue qw( lines hashes show_from show_to );
 
 use Encode ();
 use Digest::SHA1 ();
 
-my %ent = qw( < lt > gt & amp ' #39 " #34 );
-sub _encode_entities { s!([<>&'"])!&$ent{$1};!g for my @c = @_; @c[ 0 .. $#c ] }
-
-# regex by John Gruber
-# http://daringfireball.net/2010/07/improved_regex_for_matching_urls
-sub _url_rx () { qr{\b((?:[a-z][\w-]+:(?:/{1,3}|[a-z0-9%])|www\d{0,3}[.|[a-z0-9.\-]+[.[a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\{\};:'".,<>?«»“”‘’]))}i }
-
 sub new {
 	my $class = shift;
 	return $class->SUPER::new( @_, lines => [], hashes => [] );
-}
-
-sub _linkify {
-	my ( $url ) = @_;
-	return '' if not defined $url;
-
-	my @seg = map { _encode_entities $_ } map m!(.{1,50})!sg, split m{(?<=/)(?!/)}, $url;
-	my $link  = join '', @seg;
-	my $label = join '<wbr />', @seg; # deprecated :-( need a soft-hyphen w/o the hyphen...
-
-	# FIXME referer hiding should probably be optional?
-	return qq'<a href="$link" rel="noreferrer" tabindex="1">$label</a>';
 }
 
 sub push {
@@ -150,72 +135,126 @@ sub add {
 	return $self;
 }
 
-sub as_text {
+sub get_lines {
 	my $self = shift;
-	return Encode::encode 'UTF-8', ( join "\n", @{ $self->lines }, '' ), Encode::FB_HTMLCREF;
+	my ( $i, $len ) = @_;
+	$i ||= 0;
+	return grep { defined } @{ $self->lines }[ $i .. $i + $len ];
 }
 
-sub as_html {
+sub get_hashes {
 	my $self = shift;
-	my %arg = @_;
+	my ( $i, $len ) = @_;
+	$i ||= 0;
+	return grep { defined } @{ $self->hashes }[ $i .. $i + $len ];
+}
 
-	my $url_rx = _url_rx;
-	my $do_skip_link = $arg{'show_skip_link'};
+sub as_text { ChatLog::Convert::Text->new( log => @_ ) }
+sub as_html { ChatLog::Convert::HTML->new( log => @_ ) }
 
-	my $lines  = $self->lines;
-	my $hashes = $self->hashes;
-	my $body = join '', map {
-		my $hash = $hashes->[$_];
-		my ( $nick, $line ) = split /(?<=>) /, $lines->[$_], 2;
+package ChatLog::Convert;
+use Object::Tiny::Lvalue qw( log line );
 
-		$line =~ s{\G(.*?)$url_rx?}{ _encode_entities($1) . _linkify($2) }eg;
+package ChatLog::Convert::Text;
+use parent -norequire => 'ChatLog::Convert';
+
+sub chunk {
+	my $self = shift;
+	my @line = $self->log->get_lines( $self->line, 100 );
+	return if not @line;
+	$self->line += @line;
+	return Encode::encode 'UTF-8', ( join "\n", @line, '' ), Encode::FB_HTMLCREF;
+}
+
+package ChatLog::Convert::HTML;
+use parent -norequire => 'ChatLog::Convert';
+use Object::Tiny::Lvalue qw( show_skip_link title );
+
+# regex by John Gruber
+# http://daringfireball.net/2010/07/improved_regex_for_matching_urls
+sub _url_rx () { qr{\b((?:[a-z][\w-]+:(?:/{1,3}|[a-z0-9%])|www\d{0,3}[.|[a-z0-9.\-]+[.[a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\{\};:'".,<>?«»“”‘’]))}i }
+
+my %ent = qw( < lt > gt & amp ' #39 " #34 );
+sub _encode_entities { s!([<>&'"])!&$ent{$1};!g for my @c = @_; @c[ 0 .. $#c ] }
+
+sub _linkify {
+	my ( $url ) = @_;
+	return '' if not defined $url;
+
+	my @seg = map { _encode_entities $_ } map m!(.{1,50})!sg, split m{(?<=/)(?!/)}, $url;
+	my $link  = join '', @seg;
+	my $label = join '<wbr />', @seg; # deprecated :-( need a soft-hyphen w/o the hyphen...
+
+	# FIXME referer hiding should probably be optional?
+	return qq'<a href="$link" rel="noreferrer" tabindex="1">$label</a>';
+}
+
+sub chunk {
+	my $self = shift;
+
+	my $chunk;
+
+	if ( not defined $self->line ) {
+		$self->line = 0;
+
+		my $title = $self->title;
+		$title  =~ s/\.(?:irc)?log(?: |\z)//g if $title;
+		$title  =~ s!(?: |\A)([^ ]*/)!!g if $title;
+		$title .= ' ' if $title;
+		$title .= '(' . @{ $self->log->lines } . ' lines)';
+
+		$chunk = qq(
+			<html>
+			<head>
+			<title>$title « irclog2html</title>
+			<style type="text/css">
+			body { margin: 0.5em 0 }
+			a.perma { text-decoration: none; color: inherit }
+			a.skip { text-decoration: none }
+			a.skip:before { content: '\\A0\\21A7\\A0' }
+			div {
+				margin: 0;
+				padding: 0.05em 0;
+				vertical-align: top;
+				line-height: 1.4;
+			}
+			.crud { display: table-cell; white-space: pre }
+			.text { display: table-cell; white-space: pre-wrap }
+			tt { font-size: 13px }
+			</style>
+			</head>
+			<body>
+		);
+
+		$chunk =~ s!^\t+!!mg;
+		$chunk =~ s!^\n+!!;
+	}
+	else {
+		my ( $line, $next_line ) = $self->log->get_lines( $self->line, 2 );
+		return if not defined $line;
+		my ( $hash ) = $self->log->get_hashes( $self->line, 1 );
+
+		$self->line++;
+
+		my $url_rx = _url_rx;
+
+		my ( $nick, $text ) = split /(?<=>) /, $line, 2;
+
+		$text =~ s{\G(.*?)$url_rx?}{ _encode_entities($1) . _linkify($2) }eg;
 
 		my $meta;
-		$meta  = sprintf '<a href="?f=%s" class="skip" tabindex="9"></a>', $hash if $do_skip_link;
+		$meta  = sprintf '<a href="?f=%s" class="skip" tabindex="9"></a>', $hash if $self->show_skip_link;
 		$meta .= sprintf '<a href="#l%s" id="l%1$s" class="perma" tabindex="9">%s</a> ', $hash, _encode_entities $nick;
 
-		sprintf "<div>%s</div>\n", (
+		$chunk = sprintf "<div>%s</div>\n", (
 			join '' => map { sprintf "<tt%s</tt>", $_ }
-			' class="crud">' . $meta , ' class="text">' . $line
+			' class="crud">' . $meta , ' class="text">' . $text
 		);
-	} 0 .. $#$lines;
 
-	my $title = $arg{'title'};
-	$title  =~ s/\.(?:irc)?log(?: |\z)//g if $title;
-	$title  =~ s!(?: |\A)([^ ]*/)!!g if $title;
-	$title .= ' ' if $title;
-	$title .= '(' . @{ $self->lines } . ' lines)';
+		$chunk .= "\n</body\n</html>\n" if not defined $next_line;
+	}
 
-	my $page = qq(
-		<html>
-		<head>
-		<title>$title « irclog2html</title>
-		<style type="text/css">
-		body { margin: 0.5em 0 }
-		a.perma { text-decoration: none; color: inherit }
-		a.skip { text-decoration: none }
-		a.skip:before { content: '\\A0\\21A7\\A0' }
-		div {
-			margin: 0;
-			padding: 0.05em 0;
-			vertical-align: top;
-			line-height: 1.4;
-		}
-		.crud { display: table-cell; white-space: pre }
-		.text { display: table-cell; white-space: pre-wrap }
-		tt { font-size: 13px }
-		</style>
-		</head>
-		<body>
-		$body
-		</body>
-		</html>
-	);
-
-	$page =~ s!^\t+!!mg;
-	$page =~ s!^\n+!!;
-
-	return Encode::encode 'us-ascii', $page, Encode::FB_HTMLCREF;
+	return Encode::encode 'us-ascii', $chunk, Encode::FB_HTMLCREF;
 }
 
 }
