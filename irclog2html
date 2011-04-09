@@ -103,6 +103,7 @@ sub push {
 	return if $to_hash and @$hashes and $hashes->[-1] eq $to_hash;
 
 	my $hash = Digest::SHA1::sha1_base64 Encode::encode 'UTF-8', $line;
+	$hash =~ tr{+/}{-_};
 	return '0E0' if $from_hash and $hash ne $from_hash and not @$lines;
 
 	push @$hashes, $hash;
