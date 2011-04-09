@@ -65,12 +65,10 @@ else {
 
 	my $p = parse_query;
 
-	my $do_convert  = not $p->{'src'};
-	my $do_skiplink = not $p->{'noskip'};
+	my $do_convert = not $p->{'src'};
 
 	my $log = ChatLog->new(
 		title          => $fn,
-		show_skip_link => $do_skiplink,
 		show_from      => $p->{'f'},
 		show_to        => $p->{'t'},
 	)->add( $fh );
@@ -79,7 +77,9 @@ else {
 		? 'text/html; charset=us-ascii'
 		: 'text/plain; charset=utf-8';
 
-	print $do_convert ? $log->as_html : $log->as_text;
+	print $do_convert
+		? $log->as_html( show_skip_link => not $p->{'noskip'} )
+		: $log->as_text;
 }
 
 #######################################################################
@@ -87,7 +87,7 @@ else {
 BEGIN {
 
 package ChatLog;
-use Object::Tiny qw( lines hashes title show_from show_to show_skip_link );
+use Object::Tiny qw( lines hashes title show_from show_to );
 
 use Encode ();
 use Digest::SHA1 ();
@@ -156,8 +156,10 @@ sub as_text {
 
 sub as_html {
 	my $self = shift;
+	my %arg = @_;
 
 	my $url_rx = _url_rx;
+	my $do_skip_link = $arg{'show_skip_link'};
 
 	my $lines  = $self->lines;
 	my $hashes = $self->hashes;
@@ -168,7 +170,7 @@ sub as_html {
 		$line =~ s{\G(.*?)$url_rx?}{ _encode_entities($1) . _linkify($2) }eg;
 
 		my $meta;
-		$meta  = sprintf '<a href="?f=%s" class="skip" tabindex="9"></a>', $hash if $self->show_skip_link;
+		$meta  = sprintf '<a href="?f=%s" class="skip" tabindex="9"></a>', $hash if $do_skip_link;
 		$meta .= sprintf '<a href="#l%s" id="l%1$s" class="perma" tabindex="9">%s</a> ', $hash, _encode_entities $nick;
 
 		sprintf "<div>%s</div>\n", (
