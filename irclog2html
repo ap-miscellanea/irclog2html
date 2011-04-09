@@ -202,10 +202,12 @@ sub chunk {
 			<title>$title « irclog2html</title>
 			<style type="text/css">
 			body { margin: 0.5em 0 }
-			a.perma { text-decoration: none; color: inherit }
-			a.skip { text-decoration: none }
-			a.skip:before { content: '\\A0\\21A7\\A0' }
-			div {
+			a.f, a.p { text-decoration: none; padding: 0 0.35em }
+			a.f { padding-left:  0.7em }
+			a.p { padding-right: 0.7em }
+			a.f:before { content: '\\21A7' }
+			a.p:before { content: '#' }
+			p {
 				margin: 0;
 				padding: 0.05em 0;
 				vertical-align: top;
@@ -236,15 +238,15 @@ sub chunk {
 		$text =~ s{\G(.*?)$url_rx?}{ _encode_entities($1) . _linkify($2) }eg;
 
 		my $meta;
-		$meta  = sprintf '<a href="?f=%s" class="skip" tabindex="9"></a>', $hash if $self->show_skip_link;
-		$meta .= sprintf '<a href="#l%s" id="l%1$s" class="perma" tabindex="9">%s</a> ', $hash, _encode_entities $nick;
+		$meta  = sprintf '<a href="?f=%s" class="f" tabindex="9"></a>', $hash if $self->show_skip_link;
+		$meta .= sprintf '<a href="#l%s" class="p" tabindex="9"></a>%s ', $hash, _encode_entities $nick;
 
-		$chunk = sprintf "<div>%s</div>\n", (
+		$chunk = sprintf '<p id="l%s">%s</p>', $hash, (
 			join '' => map { sprintf "<tt%s</tt>", $_ }
 			' class="crud">' . $meta , ' class="text">' . $text
 		);
 
-		$chunk .= "\n</body\n</html>\n" if not defined $next_line;
+		$chunk .= defined $next_line ? "\n" : "\n</body\n</html>\n";
 	}
 
 	return Encode::encode 'us-ascii', $chunk, Encode::FB_HTMLCREF;
