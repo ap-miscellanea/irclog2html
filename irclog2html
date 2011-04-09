@@ -3,30 +3,6 @@ use 5.010;
 use strict;
 use utf8;
 
-sub parse_query {
-	require Hash::MultiValue;
-	return Hash::MultiValue->new(
-		map { split /=/, $_, 2 }
-		split /[&;]/,
-		$ENV{'QUERY_STRING'}
-	);
-}
-
-sub response {
-	my ( $status, %headers ) = @_;
-	$headers{'Content-Type'} //= 'text/plain';
-	print "Status: $status\r\n";
-	print map { "$_: $headers{$_}\r\n" } sort keys %headers;
-	print "\r\n";
-	given ( $status ) {
-		when ( 404 )  { print "$status Not Found"     }
-		when ( 403 )  { print "$status Access Denied" }
-		when ( /^4/ ) { print "$status Request Error" }
-		when ( /^5/ ) { print "$status Server Error"  }
-	}
-	exit if 200 ne $status;
-}
-
 sub openf {
 	my ( $fn ) = @_;
 	my $binmode = ':encoding(UTF-8)';
@@ -60,31 +36,44 @@ if ( 'CGI/1.1' ne ( $ENV{'GATEWAY_INTERFACE'} // '' ) ) {
 	print while defined( $_ = $out->chunk );
 }
 else {
-	response 405 if 'GET' ne $ENV{'REQUEST_METHOD'};
+	require Plack::Request;
+	require Plack::Middleware::Deflater;
+	require Plack::Handler::CGI;
 
-	my $fn = $ENV{'PATH_TRANSLATED'} // response 404;
+	my $app = sub {
+		my $env = shift;
+		my $req = Plack::Request->new( $env );
 
-	my $fh = openf $fn or response $!{ENOENT} ? 404 : $!{EACCES} ? 403 : 500;
+		return [ 405, [], [] ] if 'GET' ne $req->method;
 
-	my $p = parse_query;
+		my $fn = $ENV{'PATH_TRANSLATED'} // return [ 404, [], [] ];
 
-	my $log = ChatLog->new(
-		show_from      => $p->{'f'},
-		show_to        => $p->{'t'},
-	)->add( $fh );
+		my $fh = openf $fn or return [ ( $!{ENOENT} ? 404 : $!{EACCES} ? 403 : 500 ), [], [] ];
 
-	response 200, 'Content-Type' => $p->{'src'}
-		? 'text/plain; charset=utf-8'
-		: 'text/html; charset=us-ascii';
+		my $p = $req->query_parameters;
 
-	my $out = $p->{'src'}
-		? $log->as_text
-		: $log->as_html(
-			title          => $fn,
-			show_skip_link => not $p->{'noskip'},
-		);
+		my $log = ChatLog->new(
+			show_from      => $p->{'f'},
+			show_to        => $p->{'t'},
+		)->add( $fh );
 
-	print while defined( $_ = $out->chunk );
+		my $mime = $p->{'src'}
+			? 'text/plain; charset=utf-8'
+			: 'text/html; charset=us-ascii';
+
+		my $out = $p->{'src'}
+			? $log->as_text
+			: $log->as_html(
+				title          => $fn,
+				show_skip_link => not $p->{'noskip'},
+			);
+
+		return [ 200, [ 'Content-Type', $mime ], $out ];
+	};
+
+	$app = Plack::Middleware::Deflater->wrap( $app );
+
+	Plack::Handler::CGI->new->run( $app );
 }
 
 #######################################################################
@@ -154,6 +143,9 @@ sub as_html { ChatLog::Convert::HTML->new( log => @_ ) }
 
 package ChatLog::Convert;
 use Object::Tiny::Lvalue qw( log line );
+
+sub getline { my $self = shift; $self->chunk( @_ ) }
+sub close {}
 
 package ChatLog::Convert::Text;
 use parent -norequire => 'ChatLog::Convert';
