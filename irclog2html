@@ -13,20 +13,18 @@ sub parse_query {
 }
 
 sub response {
-	my ( $status, $headers, $body ) = @_;
-	( $headers, $body ) = ( {}, $headers ) if 'HASH' ne ref $headers;
-	$headers->{'Content-Type'} //= 'text/plain';
+	my ( $status, %headers ) = @_;
+	$headers{'Content-Type'} //= 'text/plain';
 	print "Status: $status\r\n";
-	print map { "$_: $headers->{$_}\r\n" } sort keys %$headers;
+	print map { "$_: $headers{$_}\r\n" } sort keys %headers;
 	print "\r\n";
 	given ( $status ) {
-		when ( defined $body ) { print $body }
 		when ( 404 )  { print "$status Not Found"     }
 		when ( 403 )  { print "$status Access Denied" }
 		when ( /^4/ ) { print "$status Request Error" }
 		when ( /^5/ ) { print "$status Server Error"  }
 	}
-	exit;
+	exit if 200 ne $status;
 }
 
 sub openf {
@@ -70,10 +68,6 @@ else {
 	my $do_convert  = not $p->{'src'};
 	my $do_skiplink = not $p->{'noskip'};
 
-	my $hdr; $hdr->{'Content-Type'} = $do_convert
-		? 'text/html; charset=us-ascii'
-		: 'text/plain; charset=utf-8';
-
 	my $log = ChatLog->new(
 		title          => $fn,
 		show_skip_link => $do_skiplink,
@@ -81,7 +75,11 @@ else {
 		show_to        => $p->{'t'},
 	)->add( $fh );
 
-	response 200, $hdr, $do_convert ? $log->as_html : $log->as_text;
+	response 200, 'Content-Type' => $do_convert
+		? 'text/html; charset=us-ascii'
+		: 'text/plain; charset=utf-8';
+
+	print $do_convert ? $log->as_html : $log->as_text;
 }
 
 #######################################################################
