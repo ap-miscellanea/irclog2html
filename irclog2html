@@ -45,11 +45,10 @@ if ( 'CGI/1.1' ne ( $ENV{'GATEWAY_INTERFACE'} // '' ) ) {
 		'noconv|N' => \my $opt_noconvert,
 	) or die "\n";
 
-	my $log = HTMLLog->new(
+	my $log = ChatLog->new(
 		title      => "@ARGV",
 		show_from  => $opt_from,
 		show_to    => $opt_to,
-		do_convert => ( not $opt_noconvert ),
 	);
 
 	for my $fn ( @ARGV ? @ARGV : '-' ) {
@@ -57,7 +56,7 @@ if ( 'CGI/1.1' ne ( $ENV{'GATEWAY_INTERFACE'} // '' ) ) {
 		$log->add( $fh );
 	}
 
-	print $log->page;
+	print $opt_noconvert ? $log->as_text : $log->as_html;
 }
 else {
 	response 405 if 'GET' ne $ENV{'REQUEST_METHOD'};
@@ -75,48 +74,66 @@ else {
 		? 'text/html; charset=us-ascii'
 		: 'text/plain; charset=utf-8';
 
-	response 200, $hdr, HTMLLog->new(
+	my $log = ChatLog->new(
 		title          => $fn,
 		show_skip_link => $do_skiplink,
 		show_from      => $p->{'f'},
 		show_to        => $p->{'t'},
-		do_convert     => $do_convert,
-	)->add( $fh )->page;
+	)->add( $fh );
+
+	response 200, $hdr, $do_convert ? $log->as_html : $log->as_text;
 }
 
 #######################################################################
 
 BEGIN {
 
-package HTMLLog;
-use Object::Tiny qw( lines title show_from show_to show_skip_link do_convert );
+package ChatLog;
+use Object::Tiny qw( lines hashes title show_from show_to show_skip_link );
 
 use Encode ();
 use Digest::SHA1 ();
 
 my %ent = qw( < lt > gt & amp ' #39 " #34 );
-sub encode_entities { s!([<>&'"])!&$ent{$1};!g for my @c = @_; @c[ 0 .. $#c ] }
+sub _encode_entities { s!([<>&'"])!&$ent{$1};!g for my @c = @_; @c[ 0 .. $#c ] }
 
 # regex by John Gruber
 # http://daringfireball.net/2010/07/improved_regex_for_matching_urls
-sub url_rx { qr{\b((?:[a-z][\w-]+:(?:/{1,3}|[a-z0-9%])|www\d{0,3}[.|[a-z0-9.\-]+[.[a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\{\};:'".,<>?«»“”‘’]))}i }
+sub _url_rx () { qr{\b((?:[a-z][\w-]+:(?:/{1,3}|[a-z0-9%])|www\d{0,3}[.|[a-z0-9.\-]+[.[a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\{\};:'".,<>?«»“”‘’]))}i }
 
 sub new {
 	my $class = shift;
-	return $class->SUPER::new( do_convert => 1, @_, lines => [] );
+	return $class->SUPER::new( @_, lines => [], hashes => [] );
 }
 
-sub linkify {
-	my $self = shift;
+sub _linkify {
 	my ( $url ) = @_;
 	return '' if not defined $url;
 
-	my @seg = map { encode_entities $_ } map m!(.{1,50})!sg, split m{(?<=/)(?!/)}, $url;
+	my @seg = map { _encode_entities $_ } map m!(.{1,50})!sg, split m{(?<=/)(?!/)}, $url;
 	my $link  = join '', @seg;
-	my $label = join '<wbr />', @seg;
+	my $label = join '<wbr />', @seg; # deprecated :-( need a soft-hyphen w/o the hyphen...
 
 	# FIXME referer hiding should probably be optional?
 	return qq'<a href="$link" rel="noreferrer" tabindex="1">$label</a>';
+}
+
+sub push {
+	my $self = shift;
+	my ( $line ) = @_;
+
+	my $lines        = $self->lines;
+	my $hashes       = $self->hashes;
+	my $from_hash    = $self->show_from;
+	my $to_hash      = $self->show_to;
+
+	return if $to_hash and @$hashes and $hashes->[-1] eq $to_hash;
+
+	my $hash = Digest::SHA1::sha1_base64 Encode::encode 'UTF-8', $line;
+	return '0E0' if $from_hash and $hash ne $from_hash and not @$lines;
+
+	push @$hashes, $hash;
+	push @$lines,  $line;
 }
 
 sub add {
@@ -125,49 +142,42 @@ sub add {
 
 	my $next = sub { <$next> } if 'CODE' ne ref $next;
 
-	my $url_rx       = $self->url_rx;
-	my $from_hash    = $self->show_from;
-	my $to_hash      = $self->show_to;
-	my $lines        = $self->lines;
-	my $do_convert   = $self->do_convert;
-
 	local *_;
 	while ( defined( $_ = $next->() ) ) {
 		chomp;
-
-		my $line_id = Digest::SHA1::sha1_base64 Encode::encode 'UTF-8', $_;
-		next if $from_hash and $line_id ne $from_hash and not @$lines;
-
-		if ( not $do_convert ) {
-			push @$lines, $_;
-		}
-		else {
-			my ( $nick, $line ) = split /(?<=>) /, $_, 2;
-
-			$line =~ s{\G(.*?)$url_rx?}{ encode_entities($1) . $self->linkify($2) }eg;
-
-			my $meta;
-			$meta  = sprintf '<a href="?f=%s" class="skip" tabindex="9"></a>', $line_id if $self->show_skip_link;
-			$meta .= sprintf '<a href="#l%s" id="l%1$s" class="perma" tabindex="9">%s</a> ', $line_id, encode_entities $nick;
-
-			push @$lines, (
-				sprintf "<div>%s</div>\n",
-				join '' => map { sprintf "<tt%s</tt>", $_ }
-				' class="crud">' . $meta , ' class="text">' . $line
-			);
-		}
-
-		last if $to_hash and $line_id eq $to_hash;
+		$self->push( $_ ) or last;
 	}
 
 	return $self;
 }
 
-sub page {
+sub as_text {
+	my $self = shift;
+	return Encode::encode 'UTF-8', ( join "\n", @{ $self->lines }, '' ), Encode::FB_HTMLCREF;
+}
+
+sub as_html {
 	my $self = shift;
 
-	return Encode::encode 'UTF-8', ( join "\n", @{ $self->lines }, '' ), Encode::FB_HTMLCREF
-		if not $self->do_convert;
+	my $url_rx = _url_rx;
+
+	my $lines  = $self->lines;
+	my $hashes = $self->hashes;
+	my $body = join '', map {
+		my $hash = $hashes->[$_];
+		my ( $nick, $line ) = split /(?<=>) /, $lines->[$_], 2;
+
+		$line =~ s{\G(.*?)$url_rx?}{ _encode_entities($1) . _linkify($2) }eg;
+
+		my $meta;
+		$meta  = sprintf '<a href="?f=%s" class="skip" tabindex="9"></a>', $hash if $self->show_skip_link;
+		$meta .= sprintf '<a href="#l%s" id="l%1$s" class="perma" tabindex="9">%s</a> ', $hash, _encode_entities $nick;
+
+		sprintf "<div>%s</div>\n", (
+			join '' => map { sprintf "<tt%s</tt>", $_ }
+			' class="crud">' . $meta , ' class="text">' . $line
+		);
+	} 0 .. $#$lines;
 
 	my $title = $self->title;
 	$title  =~ s/\.(?:irc)?log(?: |\z)//g if $title;
@@ -196,7 +206,7 @@ sub page {
 		</style>
 		</head>
 		<body>
-		${\join '', @{ $self->lines } }
+		$body
 		</body>
 		</html>
 	);
