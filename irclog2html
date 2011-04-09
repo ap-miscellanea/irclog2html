@@ -65,21 +65,19 @@ else {
 
 	my $p = parse_query;
 
-	my $do_convert = not $p->{'src'};
-
 	my $log = ChatLog->new(
 		title          => $fn,
 		show_from      => $p->{'f'},
 		show_to        => $p->{'t'},
 	)->add( $fh );
 
-	response 200, 'Content-Type' => $do_convert
-		? 'text/html; charset=us-ascii'
-		: 'text/plain; charset=utf-8';
+	response 200, 'Content-Type' => $p->{'src'}
+		? 'text/plain; charset=utf-8'
+		: 'text/html; charset=us-ascii';
 
-	print $do_convert
-		? $log->as_html( show_skip_link => not $p->{'noskip'} )
-		: $log->as_text;
+	print $p->{'src'}
+		? $log->as_text
+		: $log->as_html( show_skip_link => not $p->{'noskip'} );
 }
 
 #######################################################################
