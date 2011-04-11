@@ -81,7 +81,7 @@ else {
 BEGIN {
 
 package ChatLog;
-use Object::Tiny::Lvalue qw( lines hashes show_from show_to );
+use Object::Tiny::Lvalue qw( lines hashes num_words show_from show_to );
 
 use Encode ();
 use Digest::SHA1 ();
@@ -105,6 +105,10 @@ sub push {
 	my $hash = Digest::SHA1::sha1_base64 Encode::encode 'UTF-8', $line;
 	$hash =~ tr{+/}{-_};
 	return '0E0' if $from_hash and $hash ne $from_hash and not @$lines;
+
+	if ( $line =~ /\A.*?>/g ) {
+		$self->num_words++ while $line =~ /[\pN\pL']+/g;
+	}
 
 	push @$hashes, $hash;
 	push @$lines,  $line;
@@ -194,7 +198,8 @@ sub chunk {
 		$title  =~ s/\.(?:irc)?log(?: |\z)//g if $title;
 		$title  =~ s!(?: |\A)([^ ]*/)!!g if $title;
 		$title .= ' ' if $title;
-		$title .= '(' . @{ $self->log->lines } . ' lines)';
+		$title .= '(' . @{ $self->log->lines }   . ' lines,';
+		$title .= ' ' .    $self->log->num_words . ' words)';
 
 		$chunk = qq(
 			<html>
