@@ -97,31 +97,52 @@ sub new {
 	return $class->SUPER::new( @_, lines => [], hashes => [] );
 }
 
-sub push {
+sub add_line {
 	my $self = shift;
-	my ( $line ) = @_;
+	my ( $line, $do_push ) = @_;
 
 	return if not defined $line;
 
-	my $lines        = $self->lines;
-	my $hashes       = $self->hashes;
-	my $from_hash    = $self->show_from;
-	my $to_hash      = $self->show_to;
+	my $hashes    = $self->hashes;
+	my $to_hash   = $self->show_to;
+	my $from_hash = $self->show_from;
 
-	return if $to_hash and @$hashes and $hashes->[-1] eq $to_hash;
+	if ( @$hashes ) {
+		return if $do_push
+			? (   $to_hash and $hashes->[-1] eq   $to_hash )
+			: ( $from_hash and $hashes->[0]  eq $from_hash );
+	}
 
 	chomp $line;
 
 	my $hash = Digest::SHA1::sha1_base64 Encode::encode 'UTF-8', $line;
 	$hash =~ tr{+/}{-_};
-	return '0E0' if $from_hash and $hash ne $from_hash and not @$lines;
+
+	my $lines    = $self->lines;
+	my $cmp_hash = $do_push ? $from_hash : $to_hash;
+	return '0E0' if $cmp_hash and $hash ne $cmp_hash and not @$lines;
 
 	if ( $line =~ /\A.*?>/g ) {
 		$self->num_words++ while $line =~ /[\pN\pL']+/g;
 	}
 
-	push @$hashes, $hash;
-	push @$lines,  $line;
+	$do_push ? do {
+		push    @$hashes, $hash;
+		push    @$lines,  $line;
+	} : do {
+		unshift @$hashes, $hash;
+		unshift @$lines,  $line;
+	};
+}
+
+sub push {
+	my $self = shift;
+	$self->add_line( shift, 1 );
+}
+
+sub unshift {
+	my $self = shift;
+	$self->add_line( shift, 0 );
 }
 
 sub get_lines {
