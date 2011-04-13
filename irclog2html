@@ -25,8 +25,9 @@ if ( 'CGI/1.1' ne ( $ENV{'GATEWAY_INTERFACE'} // '' ) ) {
 	);
 
 	for my $fn ( @ARGV ? @ARGV : '-' ) {
+		my $_;
 		my $fh = openf $fn or die "Couldn't open $fn to read: $!\n";
-		$log->add( $fh );
+		$log->push( $_ ) or last while <$fh>;
 	}
 
 	my $out = $opt_noconvert
@@ -55,7 +56,12 @@ else {
 		my $log = ChatLog->new(
 			show_from      => $p->{'f'},
 			show_to        => $p->{'t'},
-		)->add( $fh );
+		);
+
+		{
+			my $_;
+			$log->push( $_ ) or last while <$fh>;
+		}
 
 		my $mime = $p->{'src'}
 			? 'text/plain; charset=utf-8'
@@ -95,12 +101,16 @@ sub push {
 	my $self = shift;
 	my ( $line ) = @_;
 
+	return if not defined $line;
+
 	my $lines        = $self->lines;
 	my $hashes       = $self->hashes;
 	my $from_hash    = $self->show_from;
 	my $to_hash      = $self->show_to;
 
 	return if $to_hash and @$hashes and $hashes->[-1] eq $to_hash;
+
+	chomp $line;
 
 	my $hash = Digest::SHA1::sha1_base64 Encode::encode 'UTF-8', $line;
 	$hash =~ tr{+/}{-_};
@@ -112,21 +122,6 @@ sub push {
 
 	push @$hashes, $hash;
 	push @$lines,  $line;
-}
-
-sub add {
-	my $self = shift;
-	my ( $next ) = @_;
-
-	my $next = sub { <$next> } if 'CODE' ne ref $next;
-
-	local *_;
-	while ( defined( $_ = $next->() ) ) {
-		chomp;
-		$self->push( $_ ) or last;
-	}
-
-	return $self;
 }
 
 sub get_lines {
