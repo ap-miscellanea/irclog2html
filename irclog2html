@@ -27,7 +27,7 @@ if ( 'CGI/1.1' ne ( $ENV{'GATEWAY_INTERFACE'} // '' ) ) {
 	for my $fn ( @ARGV ? @ARGV : '-' ) {
 		my $_;
 		my $fh = openf $fn or die "Couldn't open $fn to read: $!\n";
-		$log->push( $_ ) or last while <$fh>;
+		while ( <$fh> ) { $log->push( $_ ) or last }
 	}
 
 	my $out = $opt_noconvert
@@ -60,7 +60,7 @@ else {
 
 		{
 			my $_;
-			$log->push( $_ ) or last while <$fh>;
+			while ( <$fh> ) { $log->push( $_ ) or last }
 		}
 
 		my $mime = $p->{'src'}
