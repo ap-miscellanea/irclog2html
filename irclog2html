@@ -231,8 +231,9 @@ sub chunk {
 		$title  =~ s/\.(?:irc)?log(?: |\z)//g if $title;
 		$title  =~ s!(?: |\A)([^ ]*/)!!g if $title;
 		$title .= ' ' if $title;
-		$title .= '(' . @{ $self->log->lines }   . ' lines,';
-		$title .= ' ' .    $self->log->num_words . ' words)';
+		$title .= '(' . @{ $self->log->lines }   . ' lines';
+		$title .= ', ' .   $self->log->num_words . ' words' if $self->log->num_words;
+		$title .= ')';
 
 		$chunk = qq(
 			<html>
