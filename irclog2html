@@ -3,28 +3,18 @@ use 5.010;
 use strict;
 use utf8;
 
-sub openf {
-	my ( $fn, $do_backwards ) = @_;
+sub slurp {
+	my ( $fn ) = @_;
 	my $binmode = ':encoding(UTF-8)';
 
 	if ( '-' eq $fn ) {
 		binmode STDIN, $binmode;
-		return \*STDIN;
+		return [ readline STDIN ];
 	}
 
 	my $fh;
-
-	if ( $do_backwards ) {
-		require File::ReadBackwards;
-		tie local *FB, 'File::ReadBackwards', $fn or return;
-		$fh = *FB;
-		binmode tied( $fh )->get_handle, $binmode;
-	}
-	else {
-		open $fh, "<$binmode", $fn or return;
-	}
-
-	return $fh;
+	open my $fh, "<$binmode", $fn or return;
+	return [ readline $fh ];
 }
 
 if ( 'CGI/1.1' ne ( $ENV{'GATEWAY_INTERFACE'} // '' ) ) {
@@ -41,10 +31,9 @@ if ( 'CGI/1.1' ne ( $ENV{'GATEWAY_INTERFACE'} // '' ) ) {
 	);
 
 	for my $fn ( @ARGV ? @ARGV : '-' ) {
-		my $_;
-		my $fh = openf $fn, $opt_from or die "Couldn't open $fn to read: $!\n";
-		my $add = tied $fh ? 'unshift' : 'push';
-		while ( <$fh> ) { $log->$add( $_ ) or last }
+		my $lines = slurp $fn or die "Couldn't open $fn to read: $!\n";
+		if ( $opt_from ) { $log->unshift( pop @$lines ) or last while @$lines }
+		else             { $log->push(  shift @$lines ) or last while @$lines }
 	}
 
 	my $out = $opt_noconvert
@@ -74,10 +63,9 @@ else {
 		);
 
 		{
-			my $_;
-			my $fh = openf $fn, $p->{'f'} or return [ ( $!{ENOENT} ? 404 : $!{EACCES} ? 403 : 500 ), [], [] ];
-			my $add = tied $fh ? 'unshift' : 'push';
-			while ( <$fh> ) { $log->$add( $_ ) or last }
+			my $lines = slurp $fn or return [ ( $!{ENOENT} ? 404 : $!{EACCES} ? 403 : 500 ), [], [] ];
+			if ( $p->{'f'} ) { $log->unshift( pop @$lines ) or last while @$lines }
+			else             { $log->push(  shift @$lines ) or last while @$lines }
 		}
 
 		my $mime = $p->{'src'}
