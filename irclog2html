@@ -4,24 +4,39 @@ use strict;
 use utf8;
 
 sub slurp {
-	my ( $fn ) = @_;
+	my ( $fn, $do_from_end ) = @_;
 	my $binmode = ':encoding(UTF-8)';
+
+	local $/;
+	my $content;
 
 	if ( '-' eq $fn ) {
 		binmode STDIN, $binmode;
-		return [ readline STDIN ];
+		$content = readline STDIN;
+	}
+	else {
+		my $fh;
+		open my $fh, "<$binmode", $fn or return;
+		$content = readline $fh;
 	}
 
-	my $fh;
-	open my $fh, "<$binmode", $fn or return;
-	return [ readline $fh ];
+	my $blocksize = 1 << 20;
+	my $offset = $do_from_end ? -$blocksize : 0;
+	my $step = $do_from_end ? -$blocksize : $blocksize;
+	return sub {
+		my $split = substr $content, $offset, $blocksize;
+		my @line  = split /\n/, $split, -1;
+		$offset += $blocksize - length ( $do_from_end ? shift @line : pop @line );
+		\@line;
+	};
 }
 
 sub load_file {
 	my ( $log, $fn, $do_backwards ) = @_;
-	my $lines = slurp $fn or return;
-	if ( $do_backwards ) { $log->unshift( pop @$lines ) or last while @$lines }
-	else                 { $log->push(  shift @$lines ) or last while @$lines }
+	my $get_lines = slurp $fn, $do_backwards or return;
+	my $lines = $get_lines->();
+	if ( $do_backwards ) { $log->unshift( pop @$lines ) or last while @$lines or @{ $lines = $get_lines->() } }
+	else                 { $log->push(  shift @$lines ) or last while @$lines or @{ $lines = $get_lines->() } }
 	1;
 }
 
