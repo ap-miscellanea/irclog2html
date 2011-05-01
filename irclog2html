@@ -17,6 +17,14 @@ sub slurp {
 	return [ readline $fh ];
 }
 
+sub load_file {
+	my ( $log, $fn, $do_backwards ) = @_;
+	my $lines = slurp $fn or return;
+	if ( $do_backwards ) { $log->unshift( pop @$lines ) or last while @$lines }
+	else                 { $log->push(  shift @$lines ) or last while @$lines }
+	1;
+}
+
 if ( 'CGI/1.1' ne ( $ENV{'GATEWAY_INTERFACE'} // '' ) ) {
 	eval 'use Getopt::Long 2.24, qw( :config bundling no_ignore_case no_auto_abbrev ); 1' or die $@;
 	GetOptions(
@@ -31,9 +39,8 @@ if ( 'CGI/1.1' ne ( $ENV{'GATEWAY_INTERFACE'} // '' ) ) {
 	);
 
 	for my $fn ( @ARGV ? @ARGV : '-' ) {
-		my $lines = slurp $fn or die "Couldn't open $fn to read: $!\n";
-		if ( $opt_from ) { $log->unshift( pop @$lines ) or last while @$lines }
-		else             { $log->push(  shift @$lines ) or last while @$lines }
+		load_file $log, $fn, $opt_from
+			or die "Couldn't open $fn to read: $!\n";
 	}
 
 	my $out = $opt_noconvert
@@ -62,11 +69,8 @@ else {
 			show_to   => $p->{'t'},
 		);
 
-		{
-			my $lines = slurp $fn or return [ ( $!{ENOENT} ? 404 : $!{EACCES} ? 403 : 500 ), [], [] ];
-			if ( $p->{'f'} ) { $log->unshift( pop @$lines ) or last while @$lines }
-			else             { $log->push(  shift @$lines ) or last while @$lines }
-		}
+		load_file $log, $fn, $p->{'f'}
+			or return [ ( $!{ENOENT} ? 404 : $!{EACCES} ? 403 : 500 ), [], [] ];
 
 		my $mime = $p->{'src'}
 			? 'text/plain; charset=utf-8'
