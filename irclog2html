@@ -25,8 +25,13 @@ sub slurp {
 	my $step = $do_from_end ? -$blocksize : $blocksize;
 	return sub {
 		my $split = substr $content, $offset, $blocksize;
-		my @line  = split /\n/, $split, -1;
-		$offset += $blocksize - length ( $do_from_end ? shift @line : pop @line );
+		my @line  = split /\n/, $split;
+		if ( $do_from_end ) {
+			$offset += $blocksize + length shift @line if $offset > 0;
+		}
+		else {
+			$offset += $blocksize - length pop @line if $offset < length $split;
+		}
 		\@line;
 	};
 }
