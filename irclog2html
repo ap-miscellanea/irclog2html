@@ -23,14 +23,19 @@ sub slurp {
 	my $blocksize = 1 << 20;
 	my $offset = $do_from_end ? -$blocksize : 0;
 	my $step = $do_from_end ? -$blocksize : $blocksize;
+	my $is_done;
 	return sub {
+		return [] if $is_done;
 		my $split = substr $content, $offset, $blocksize;
+		return [] if not length $split;
 		my @line  = split /\n/, $split;
-		if ( $do_from_end ) {
-			$offset += $blocksize + length shift @line if $offset > 0;
+		if ( length $split < $blocksize ) {
+			$is_done = 1;
 		}
 		else {
-			$offset += $blocksize - length pop @line if $offset < length $split;
+			$do_from_end
+				? $blocksize += $offset + length shift @line
+				: $blocksize += $offset = length pop   @line;
 		}
 		\@line;
 	};
