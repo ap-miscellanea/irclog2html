@@ -287,6 +287,9 @@ sub chunk {
 
 		my ( $nick, $text ) = split /(?<=>) /, $line, 2;
 
+		( $nick, $text ) = split / /, $line, 2
+			if not defined $text;
+
 		$chunk  = sprintf '<p id="l%s">', $hash;
 		$chunk .= '<tt class="crud">';
 		$chunk .= sprintf '<a href="?f=%s" class="f" tabindex="9"></a>', $hash if $self->show_skip_link;
