@@ -124,7 +124,7 @@ package ChatLog;
 use Object::Tiny::Lvalue qw( lines hashes num_words show_from show_to );
 
 use Encode ();
-use Digest::SHA1 ();
+use Digest::SHA ();
 
 sub new {
 	my $class = shift;
@@ -149,7 +149,7 @@ sub add_line {
 
 	chomp $line;
 
-	my $hash = Digest::SHA1::sha1_base64 Encode::encode 'UTF-8', $line;
+	my $hash = Digest::SHA::sha1_base64 Encode::encode 'UTF-8', $line;
 	$hash =~ tr{+/}{-_};
 
 	my $lines    = $self->lines;
