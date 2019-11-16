@@ -253,10 +253,10 @@ sub chunk {
 		$title .= ')';
 
 		$chunk = qq(
-			<html>
-			<head>
+			<!DOCTYPE html>
+			<meta name="viewport" content="width=device-width, initial-scale=1">
 			<title>$title « irclog2html</title>
-			<style type="text/css">
+			<style>
 			body { margin: 0.5em 0 }
 			a.f, a.p { text-decoration: none; padding: 0 0.35em }
 			a.f { padding-left:  0.7em }
@@ -273,8 +273,6 @@ sub chunk {
 			.text { display: table-cell; white-space: pre-wrap }
 			tt { font-size: 13px }
 			</style>
-			</head>
-			<body>
 		);
 
 		$chunk =~ s!^\t+!!mg;
