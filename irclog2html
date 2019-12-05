@@ -42,7 +42,8 @@ sub slurp {
 }
 
 sub load_file {
-	my ( $log, $fn, $do_backwards ) = @_;
+	my ( $log, $fn ) = @_;
+	my $do_backwards = $log->show_from;
 	my $get_lines = slurp $fn, $do_backwards or return;
 	my $lines = $get_lines->();
 	if ( $do_backwards ) { while ( @$lines or @{ $lines = $get_lines->() } ) { $log->unshift( pop @$lines ) or last } }
@@ -63,10 +64,9 @@ if ( 'CGI/1.1' ne ( $ENV{'GATEWAY_INTERFACE'} // '' ) ) {
 		show_to    => $opt_to,
 	);
 
-	for my $fn ( @ARGV ? @ARGV : '-' ) {
-		load_file $log, $fn, $opt_from
-			or die "Couldn't open $fn to read: $!\n";
-	}
+	my $fn = @ARGV ? $ARGV[0] : '-';
+	load_file $log, $fn
+		or die "Couldn't open $fn to read: $!\n";
 
 	my $out = $opt_noconvert
 		? $log->as_text
@@ -94,7 +94,7 @@ else {
 			show_to   => $p->{'t'},
 		);
 
-		load_file $log, $fn, $p->{'f'}
+		load_file $log, $fn
 			or return [ ( $!{ENOENT} ? 404 : $!{EACCES} ? 403 : 500 ), [], [] ];
 
 		my $mime = $p->{'src'}
