@@ -270,8 +270,12 @@ sub chunk {
 				line-height: 1.4;
 			}
 			.crud { display: table-cell; white-space: pre }
-			.text { display: table-cell; white-space: pre-wrap }
+			.text { display: table-cell; white-space: pre-wrap; padding-right: 1em }
 			tt { font-size: 13px }
+			\@media only screen and (max-width: 820px) {
+				.crud, .text { display: block }
+				.text { padding-left: 3.4em }
+			}
 			</style>
 		);
 
